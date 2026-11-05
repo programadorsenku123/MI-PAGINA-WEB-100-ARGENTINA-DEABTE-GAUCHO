@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Debate Gaucho</title>
+  <style>
+    :root { --blue: #75aadb; --dark-blue: #75aadb; --light-blue: #e9f3ff; --background: #f2f5f8; --text: #75aadb; --muted: #718097; --border: #d9e2ec; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      font-family: Arial, sans-serif;
+      background:
+        linear-gradient(
+          to bottom,
+          #74acdf 0 33.33%,
+          white 33.33% 66.66%,
+          #74acdf 66.66% 100%
+        );
+    }
+    button, input, textarea { font: inherit; }
+    button { cursor: pointer; }
+    header { display: flex; align-items: center; gap: 20px; padding: 14px 6%; color: white; background: var(--dark-blue); }
+    header h1 { margin: 0; font-size: 1.25rem; }
+    header input { width: min(350px, 45vw); padding: 9px 13px; border: 0; border-radius: 20px; }
+    .hero {
+      padding: 45px 6%;
+      color: white;
+      background: #74acdf;
+    }
+    .hero h2 {
+      max-width: 650px;
+      margin: 0;
+      font-size: clamp(2rem, 5vw, 3.5rem);
+      color: white;
+    }
+    .hero p {
+      max-width: 620px;
+      font-size: 1.1rem;
+      line-height: 1.5;
+      color: white;
+    }
+    main {
+      display: block;
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 20px 0 0;
+    }
+    .box, .post { padding: 18px; border: 1px solid var(--border); border-radius: 7px; background: white; }
+    .box h3, .sidebar h3 { margin-top: 0; }
+    #postTitle, #postText { width: 100%; margin-bottom: 10px; padding: 11px; border: 1px solid var(--border); border-radius: 5px; }
+    #postText { min-height: 85px; resize: vertical; }
+    .publish-button { padding: 10px 17px; border: 0; border-radius: 5px; color: white; background: var(--blue); font-weight: bold; }
+    .post { display: grid; grid-template-columns: 55px 1fr; gap: 12px; margin-top: 14px; }
+    .votes { text-align: center; background: #f6faff; }
+    .vote-button { display: block; width: 100%; padding: 7px; border: 0; color: var(--muted); background: transparent; font-size: 1.2rem; }
+    .vote-button:hover { color: var(--blue); }
+    .score { font-weight: bold; }
+    .post h3 { margin: 0 0 7px; }
+    .post p { line-height: 1.5; }
+    .meta { color: var(--muted); font-size: .8rem; }
+    .post-actions button { margin-right: 6px; padding: 7px 9px; border: 0; border-radius: 4px; color: var(--muted); background: var(--light-blue); }
+    .comments { margin-top: 10px; }
+    .comment { padding: 8px; border-left: 3px solid #acd0f3; background: #f7fbff; }
+    .comment-form { display: flex; gap: 7px; margin-top: 10px; }
+    .comment-form input { min-width: 0; flex: 1; padding: 8px; border: 1px solid var(--border); }
+    .comment-form button { border: 0; color: white; background: var(--blue); }
+    .hidden { display: none; }
+    .empty { padding: 25px; color: var(--muted); text-align: center; }
+    .sidebar p { color: var(--muted); line-height: 1.5; }
+    .tag { display: inline-block; margin: 3px; padding: 7px; border-radius: 4px; color: var(--dark-blue); background: var(--light-blue); }
+    @media (max-width: 760px) { header { padding: 12px 15px; } header input { width: 100%; } main { display: block; } .sidebar { display: none; } .post { grid-template-columns: 42px 1fr; padding: 12px; } }
+  </style>
+</head>
+<body>
+  <header><h1> Debate Gaucho</h1><input id="search" type="search" placeholder="Buscar publicaciones..."></header>
+  <section class="hero"><h2>Habla de Argentina.</h2><p>Comparte preguntas, noticias, opiniones, música, comida, fútbol y todo lo relacionado con Argentina.</p></section>
+  <main>
+    <section>
+      <form class="box" id="postForm">
+        <h3>Crear un post</h3>
+        <p class="meta">No se guarda ni se envía a un servidor. Al recargar la página, se borra.</p>
+        <input id="postTitle" type="text" placeholder="Tu título..." required>
+        <textarea id="postText" placeholder="Escribí tu post..."></textarea>
+        <button class="publish-button" type="submit">Publicar</button>
+      </form>
+      <div id="feed"></div>
+    </section>
+  </main>
+  <script>
+    let posts = [];
+    localStorage.removeItem("debateGauchoPosts");
+
+    function showPosts() {
+      const feed = document.getElementById("feed");
+      if (posts.length === 0) {
+        feed.innerHTML = '<div class="empty">No hay publicaciones aún.</div>';
+        return;
+      }
+      feed.innerHTML = posts.map(function(post) {
+        const comments = post.comments.map(function(comment) { return '<p class="comment">' + escapeHTML(comment) + '</p>'; }).join("");
+        return `<article class="post"><div class="votes"><button class="vote-button" onclick="changeVotes(${post.id}, 1)">▲</button><div class="score">${post.votes}</div><button class="vote-button" onclick="changeVotes(${post.id}, -1)">▼</button></div><div><p class="meta">Publicado por un miembro de la comunidad</p><h3>${escapeHTML(post.title)}</h3><p>${escapeHTML(post.text)}</p><div class="post-actions"><button onclick="showCommentForm(${post.id})">Comentarios (${post.comments.length})</button><button onclick="sharePost()">Compartir</button></div><div id="commentForm${post.id}" class="comment-form hidden"><input id="commentInput${post.id}" placeholder="Escribí tu post..."><button onclick="addComment(${post.id})">Enviar</button></div><div class="comments">${comments}</div></div></article>`;
+      }).join("");
+    }
+
+    document.getElementById("postForm").addEventListener("submit", function(event) {
+      event.preventDefault();
+      const title = document.getElementById("postTitle").value.trim();
+      const text = document.getElementById("postText").value.trim();
+      if (title === "" || text === "") return;
+      posts.unshift({ id: Date.now(), title: title, text: text, votes: 1, comments: [] });
+      this.reset(); showPosts();
+    });
+
+    function escapeHTML(text) { return text.replace(/[&<>"']/g, function(character) { const symbols = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }; return symbols[character]; }); }
+    function changeVotes(postId, amount) { const post = posts.find(function(item) { return item.id === postId; }); post.votes += amount; showPosts(); }
+    function showCommentForm(postId) { document.getElementById("commentForm" + postId).classList.toggle("hidden"); }
+    function addComment(postId) { const input = document.getElementById("commentInput" + postId); if (input.value.trim() === "") return; const post = posts.find(function(item) { return item.id === postId; }); post.comments.push(input.value.trim()); showPosts(); }
+    function sharePost() { alert("Copia la dirección de la página desde tu navegador para compartirla."); }
+
+    document.getElementById("search").addEventListener("input", showPosts);
+    showPosts();
+  </script>
+</body>
+</html>
+ 
