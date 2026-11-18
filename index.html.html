@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Debate Gaucho</title>
+  <style>
+    :root { --blue: #75aadb; --dark-blue: #75aadb; --light-blue: #e9f3ff; --background: #f2f5f8; --text: #75aadb; --muted: #718097; --border: #d9e2ec; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      font-family: Arial, sans-serif;
+      background:
+        linear-gradient(
+          to bottom,
+          #74acdf 0 33.33%,
+          white 33.33% 66.66%,
+          #74acdf 66.66% 100%
+        );
+    }
+    button, input, textarea { font: inherit; }
+    button { cursor: pointer; }
+    header { display: flex; align-items: center; gap: 20px; padding: 14px 6%; color: white; background: var(--dark-blue); }
+    header h1 { margin: 0; font-size: 1.25rem; }
+    header input { width: min(350px, 45vw); padding: 9px 13px; border: 0; border-radius: 20px; }
+    .hero {
+      padding: 45px 6%;
+      color: white;
+      background: #74acdf;
+    }
+    .hero h2 {
+      max-width: 650px;
+      margin: 0;
+      font-size: clamp(2rem, 5vw, 3.5rem);
+      color: white;
+    }
+    .hero p {
+      max-width: 620px;
+      font-size: 1.1rem;
+      line-height: 1.5;
+      color: white;
+    }
+    main {
+      display: block;
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 20px 0 0;
+    }
+    .box, .post { padding: 18px; border: 1px solid var(--border); border-radius: 7px; background: white; }
+    .box h3, .sidebar h3 { margin-top: 0; }
+    #postTitle, #postText { width: 100%; margin-bottom: 10px; padding: 11px; border: 1px solid var(--border); border-radius: 5px; }
+    #postText { min-height: 85px; resize: vertical; }
+    .publish-button { padding: 10px 17px; border: 0; border-radius: 5px; color: white; background: var(--blue); font-weight: bold; }
+    .publish-button:disabled { opacity: .6; cursor: wait; }
+    .post { display: grid; grid-template-columns: 55px 1fr; gap: 12px; margin-top: 14px; }
+    .votes { text-align: center; background: #f6faff; }
+    .vote-button { display: block; width: 100%; padding: 7px; border: 0; color: var(--muted); background: transparent; font-size: 1.2rem; }
+    .vote-button:hover { color: var(--blue); }
+    .score { font-weight: bold; }
+    .post h3 { margin: 0 0 7px; }
+    .post p { line-height: 1.5; }
+    .meta { color: var(--muted); font-size: .8rem; }
+    .post-actions button { margin-right: 6px; padding: 7px 9px; border: 0; border-radius: 4px; color: var(--muted); background: var(--light-blue); }
+    .comments { margin-top: 10px; }
+    .comment { padding: 8px; border-left: 3px solid #acd0f3; background: #f7fbff; }
+    .comment-form { display: flex; gap: 7px; margin-top: 10px; }
+    .comment-form input { min-width: 0; flex: 1; padding: 8px; border: 1px solid var(--border); }
+    .comment-form button { border: 0; color: white; background: var(--blue); }
+    .hidden { display: none; }
+    .empty { padding: 25px; color: var(--muted); text-align: center; background: white; border-radius: 7px; margin-top: 14px; }
+    .sidebar p { color: var(--muted); line-height: 1.5; }
+    .tag { display: inline-block; margin: 3px; padding: 7px; border-radius: 4px; color: var(--dark-blue); background: var(--light-blue); }
+    @media (max-width: 760px) { header { padding: 12px 15px; } header input { width: 100%; } main { display: block; } .sidebar { display: none; } .post { grid-template-columns: 42px 1fr; padding: 12px; } }
+  </style>
+</head>
+<body>
+  <header><h1> Debate Gaucho</h1><input id="search" type="search" placeholder="Buscar publicaciones..."></header>
+  <section class="hero"><h2>Habla de Argentina.</h2><p>Comparte preguntas, noticias, opiniones, música, comida, fútbol y todo lo relacionado con Argentina.</p></section>
+  <main>
+    <section>
+      <form class="box" id="postForm">
+        <h3>Crear un post</h3>
+        <p class="meta">Los posts se guardan en internet: todos los visitantes los ven, desde cualquier navegador o dispositivo.</p>
+        <input id="postTitle" type="text" placeholder="Tu título..." maxlength="120" required>
+        <textarea id="postText" placeholder="Escribí tu post..." maxlength="2000"></textarea>
+        <button class="publish-button" id="publishButton" type="submit">Publicar</button>
+      </form>
+      <div id="feed"></div>
+    </section>
+  </main>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import {
+      getFirestore, collection, addDoc, doc, updateDoc, onSnapshot,
+      query, orderBy, increment, arrayUnion, serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    // ============================================================
+    // PEGÁ ACÁ LA CONFIGURACIÓN QUE TE DA FIREBASE
+    // (reemplazá todo el bloque de abajo)
+    // ============================================================
+    const firebaseConfig = {
+      apiKey: "AIzaSyAE-8HVY6LUdgbmzhvxTvNYzhhwME4FmYo",
+      authDomain: "debate-gaucho.firebaseapp.com",
+      projectId: "debate-gaucho",
+      storageBucket: "debate-gaucho.firebasestorage.app",
+      messagingSenderId: "323192791680",
+      appId: "1:323192791680:web:7f89c1d4b93094ec83fc65"
+    };
+    // ============================================================
+
+    const configured = !String(firebaseConfig.apiKey).startsWith("PEGAR");
+    const feed = document.getElementById("feed");
+    const searchInput = document.getElementById("search");
+
+    let posts = [];
+    let loaded = false;
+    let errorMessage = "";
+    const openForms = new Set();
+    const drafts = {};
+    const VOTED_KEY = "debateGauchoVotes";
+
+    function getVoted() {
+      try { return JSON.parse(localStorage.getItem(VOTED_KEY)) || {}; } catch (e) { return {}; }
+    }
+    function setVoted(postId, amount) {
+      try {
+        const voted = getVoted();
+        voted[postId] = amount;
+        localStorage.setItem(VOTED_KEY, JSON.stringify(voted));
+      } catch (e) {}
+    }
+
+    function escapeHTML(text) {
+      return String(text).replace(/[&<>"']/g, function(character) {
+        const symbols = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" };
+        return symbols[character];
+      });
+    }
+
+    function showPosts() {
+      // Guardar lo que la persona estaba escribiendo en los comentarios
+      document.querySelectorAll("[data-comment-input]").forEach(function(input) {
+        drafts[input.dataset.commentInput] = input.value;
+      });
+
+      if (!configured) {
+        feed.innerHTML = '<div class="empty">Falta pegar la configuración de Firebase en el código.</div>';
+        return;
+      }
+      if (errorMessage) {
+        feed.innerHTML = '<div class="empty">' + escapeHTML(errorMessage) + '</div>';
+        return;
+      }
+      if (!loaded) {
+        feed.innerHTML = '<div class="empty">Cargando publicaciones...</div>';
+        return;
+      }
+
+      const term = searchInput.value.trim().toLowerCase();
+      const visible = posts.filter(function(post) {
+        return term === "" || post.title.toLowerCase().includes(term) || post.text.toLowerCase().includes(term);
+      });
+
+      if (visible.length === 0) {
+        feed.innerHTML = '<div class="empty">' + (posts.length === 0 ? "No hay publicaciones aún." : "No se encontraron publicaciones.") + '</div>';
+        return;
+      }
+
+      feed.innerHTML = visible.map(function(post) {
+        const comments = post.comments.map(function(comment) {
+          return '<p class="comment">' + escapeHTML(comment.text) + '</p>';
+        }).join("");
+        const formHidden = openForms.has(post.id) ? "" : " hidden";
+        const draft = escapeHTML(drafts[post.id] || "");
+        return `<article class="post">
+          <div class="votes">
+            <button class="vote-button" data-action="vote" data-id="${post.id}" data-amount="1">▲</button>
+            <div class="score">${post.votes}</div>
+            <button class="vote-button" data-action="vote" data-id="${post.id}" data-amount="-1">▼</button>
+          </div>
+          <div>
+            <p class="meta">Publicado por un miembro de la comunidad</p>
+            <h3>${escapeHTML(post.title)}</h3>
+            <p>${escapeHTML(post.text)}</p>
+            <div class="post-actions">
+              <button data-action="toggle" data-id="${post.id}">Comentarios (${post.comments.length})</button>
+              <button data-action="share">Compartir</button>
+            </div>
+            <div class="comment-form${formHidden}">
+              <input data-comment-input="${post.id}" maxlength="500" placeholder="Escribí tu comentario..." value="${draft}">
+              <button data-action="comment" data-id="${post.id}">Enviar</button>
+            </div>
+            <div class="comments">${comments}</div>
+          </div>
+        </article>`;
+      }).join("");
+    }
+
+    if (!configured) {
+      showPosts();
+    } else {
+      const app = initializeApp(firebaseConfig);
+      const db = getFirestore(app);
+      const postsRef = collection(db, "posts");
+
+      // Escucha en tiempo real: cualquier post nuevo aparece para todos
+      onSnapshot(
+        query(postsRef, orderBy("createdAt", "desc")),
+        function(snapshot) {
+          posts = snapshot.docs.map(function(d) {
+            const data = d.data();
+            return {
+              id: d.id,
+              title: data.title || "",
+              text: data.text || "",
+              votes: data.votes || 0,
+              comments: Array.isArray(data.comments) ? data.comments : []
+            };
+          });
+          loaded = true;
+          errorMessage = "";
+          showPosts();
+        },
+        function(error) {
+          console.error(error);
+          errorMessage = "No se pudieron cargar las publicaciones. Revisá las reglas de Firestore y la configuración.";
+          showPosts();
+        }
+      );
+
+      document.getElementById("postForm").addEventListener("submit", async function(event) {
+        event.preventDefault();
+        const form = this;
+        const button = document.getElementById("publishButton");
+        const title = document.getElementById("postTitle").value.trim();
+        const text = document.getElementById("postText").value.trim();
+        if (title === "" || text === "") return;
+        button.disabled = true;
+        try {
+          await addDoc(postsRef, {
+            title: title,
+            text: text,
+            votes: 1,
+            comments: [],
+            createdAt: serverTimestamp()
+          });
+          form.reset();
+        } catch (error) {
+          console.error(error);
+          alert("No se pudo publicar. Probá de nuevo en un momento.");
+        }
+        button.disabled = false;
+      });
+
+      async function addComment(postId) {
+        const input = document.querySelector('[data-comment-input="' + postId + '"]');
+        const value = input ? input.value.trim() : "";
+        if (value === "") return;
+        try {
+          await updateDoc(doc(db, "posts", postId), {
+            comments: arrayUnion({ id: Date.now() + "-" + Math.random().toString(36).slice(2, 8), text: value })
+          });
+          drafts[postId] = "";
+        } catch (error) {
+          console.error(error);
+          alert("No se pudo enviar el comentario.");
+        }
+      }
+
+      async function changeVotes(postId, amount) {
+        const voted = getVoted();
+        if (voted[postId]) {
+          alert("Ya votaste esta publicación.");
+          return;
+        }
+        try {
+          await updateDoc(doc(db, "posts", postId), { votes: increment(amount) });
+          setVoted(postId, amount);
+        } catch (error) {
+          console.error(error);
+          alert("No se pudo registrar el voto.");
+        }
+      }
+
+      feed.addEventListener("click", function(event) {
+        const target = event.target.closest("[data-action]");
+        if (!target) return;
+        const action = target.dataset.action;
+        const id = target.dataset.id;
+        if (action === "vote") changeVotes(id, Number(target.dataset.amount));
+        if (action === "toggle") {
+          if (openForms.has(id)) openForms.delete(id); else openForms.add(id);
+          showPosts();
+        }
+        if (action === "comment") addComment(id);
+        if (action === "share") alert("Copia la dirección de la página desde tu navegador para compartirla.");
+      });
+
+      feed.addEventListener("keydown", function(event) {
+        if (event.key === "Enter" && event.target.dataset.commentInput) {
+          event.preventDefault();
+          addComment(event.target.dataset.commentInput);
+        }
+      });
+
+      searchInput.addEventListener("input", showPosts);
+      showPosts();
+    }
+  </script>
+</body>
+</html>
