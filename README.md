@@ -6,4 +6,4 @@ Me extendí un poco pero bueno esta página web es para argentinos y no argentin
  1_Nada de porno ni contenido +18 
  2_Nada de contenido explicito 
  Solo son esas 2 cosas. 
-   Espero que lo disfruten y que estén bien, me gastaría que mi proyecto tenga un logo 
+   Espero que lo disfruten y que estén bien, me gustaría que mi proyecto tenga un logo 
